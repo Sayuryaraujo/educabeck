@@ -2,10 +2,17 @@ const prisma = require('../data/prisma');
 
 const cadastrar = async (req, res) => {
     try {
+        const usuario_id = req.usuario.tipo === 'ADMIN' && req.body.usuario_id !== undefined
+            ? Number(req.body.usuario_id)
+            : Number(req.usuario.id);
+
         const curso_id = Number(req.body.curso_id);
         const progresso = Number(req.body.progresso ?? 0);
         const concluido = Boolean(req.body.concluido ?? progresso >= 100);
 
+        if (!Number.isInteger(usuario_id) || usuario_id <= 0) {
+            return res.status(400).json({ erro: 'ID do usuário inválido' });
+        }
         if (!Number.isInteger(curso_id) || curso_id <= 0) {
             return res.status(400).json({ erro: 'ID do curso inválido' });
         }
@@ -13,12 +20,15 @@ const cadastrar = async (req, res) => {
             return res.status(400).json({ erro: 'O progresso deve ficar entre 0 e 100' });
         }
 
+        const usuario = await prisma.usuarios.findUnique({ where: { id: usuario_id } });
+        if (!usuario) return res.status(404).json({ erro: 'Usuário não encontrado' });
+
         const curso = await prisma.cursos.findUnique({ where: { id: curso_id } });
         if (!curso) return res.status(404).json({ erro: 'Curso não encontrado' });
 
         const registro = await prisma.progresso_cursos.upsert({
-            where: { usuario_id_curso_id: { usuario_id: req.usuario.id, curso_id } },
-            create: { usuario_id: req.usuario.id, curso_id, progresso, concluido },
+            where: { usuario_id_curso_id: { usuario_id, curso_id } },
+            create: { usuario_id, curso_id, progresso, concluido },
             update: { progresso, concluido }
         });
         return res.status(200).json(registro);
