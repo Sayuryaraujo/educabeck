@@ -66,12 +66,39 @@ const buscar = async (req, res) => {
 const atualizar = async (req, res) => {
     try {
         const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) {
+            return res.status(400).json({ erro: 'ID do progresso inválido' });
+        }
+
         const registroAtual = await prisma.progresso_cursos.findUnique({ where: { id } });
         if (!registroAtual) return res.status(404).json({ erro: 'Progresso não encontrado' });
+
         if (req.usuario.tipo !== 'ADMIN' && registroAtual.usuario_id !== req.usuario.id) {
             return res.status(403).json({ erro: 'Você só pode alterar seu próprio progresso' });
         }
+
         const dados = {};
+
+        if (req.usuario.tipo === 'ADMIN' && req.body.usuario_id !== undefined) {
+            const usuario_id = Number(req.body.usuario_id);
+            if (!Number.isInteger(usuario_id) || usuario_id <= 0) {
+                return res.status(400).json({ erro: 'ID do usuário inválido' });
+            }
+            const usuario = await prisma.usuarios.findUnique({ where: { id: usuario_id } });
+            if (!usuario) return res.status(404).json({ erro: 'Usuário não encontrado' });
+            dados.usuario_id = usuario_id;
+        }
+
+        if (req.body.curso_id !== undefined) {
+            const curso_id = Number(req.body.curso_id);
+            if (!Number.isInteger(curso_id) || curso_id <= 0) {
+                return res.status(400).json({ erro: 'ID do curso inválido' });
+            }
+            const curso = await prisma.cursos.findUnique({ where: { id: curso_id } });
+            if (!curso) return res.status(404).json({ erro: 'Curso não encontrado' });
+            dados.curso_id = curso_id;
+        }
+
         if (req.body.progresso !== undefined) {
             const progresso = Number(req.body.progresso);
             if (!Number.isFinite(progresso) || progresso < 0 || progresso > 100) {
@@ -79,13 +106,21 @@ const atualizar = async (req, res) => {
             }
             dados.progresso = progresso;
         }
-        if (req.body.concluido !== undefined) dados.concluido = Boolean(req.body.concluido);
+
+        if (req.body.concluido !== undefined) {
+            dados.concluido = Boolean(req.body.concluido);
+        }
+
         const registro = await prisma.progresso_cursos.update({ where: { id }, data: dados });
         return res.json(registro);
     } catch (error) {
+        if (error.code === 'P2002') {
+            return res.status(400).json({ erro: 'Este usuário já possui progresso cadastrado para este curso' });
+        }
         return res.status(500).json({ erro: 'Erro ao atualizar progresso', detalhes: error.message });
     }
 };
+
 
 const excluir = async (req, res) => {
     try {
