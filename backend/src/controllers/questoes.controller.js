@@ -1,0 +1,142 @@
+const prisma = require('../data/prisma');
+
+const cadastrar = async (req, res) => {
+    try {
+        const {
+            quiz_id,
+            pergunta,
+            resposta_correta
+        } = req.body;
+
+        const questao = await prisma.questoes.create({
+            data: {
+                quiz_id: Number(quiz_id),
+                pergunta,
+                resposta_correta
+            }
+        });
+
+        res.status(201).json(questao);
+
+    } catch (error) {
+        res.status(500).json({
+            erro: 'Erro ao cadastrar questão',
+            detalhes: error.message
+        });
+    }
+};
+
+const listar = async (req, res) => {
+    try {
+        const questoes = await prisma.questoes.findMany();
+        return res.json(req.usuario.tipo === 'ADMIN'
+            ? questoes
+            : questoes.map(({ resposta_correta, ...questao }) => questao));
+    } catch (error) {
+        return res.status(500).json({ erro: 'Erro ao listar questões', detalhes: error.message });
+    }
+};
+
+const listarPorQuiz = async (req, res) => {
+    try {
+        const quizId = Number(req.params.quizId);
+        if (!Number.isInteger(quizId) || quizId <= 0) {
+            return res.status(400).json({ erro: 'ID do quiz inválido' });
+        }
+        const quiz = await prisma.quizzes.findUnique({ where: { id: quizId } });
+        if (!quiz) return res.status(404).json({ erro: 'Quiz não encontrado' });
+        const questoes = await prisma.questoes.findMany({
+            where: { quiz_id: quizId },
+            select: { id: true, quiz_id: true, pergunta: true }
+        });
+        return res.json(questoes);
+    } catch (error) {
+        return res.status(500).json({ erro: 'Erro ao listar questões do quiz', detalhes: error.message });
+    }
+};
+
+const buscar = async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+
+        const questao = await prisma.questoes.findUnique({
+            where: { id }
+        });
+
+        if (!questao) {
+            return res.status(404).json({
+                erro: 'Questão não encontrada'
+            });
+        }
+
+        if (req.usuario.tipo !== 'ADMIN') {
+            const { resposta_correta, ...questaoPublica } = questao;
+            return res.json(questaoPublica);
+        }
+        return res.json(questao);
+
+    } catch (error) {
+        res.status(500).json({
+            erro: 'Erro ao buscar questão',
+            detalhes: error.message
+        });
+    }
+};
+
+const atualizar = async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+
+        const {
+            quiz_id,
+            pergunta,
+            resposta_correta
+        } = req.body;
+
+        const questao = await prisma.questoes.update({
+            where: { id },
+            data: {
+                quiz_id: Number(quiz_id),
+                pergunta,
+                resposta_correta
+            }
+        });
+
+        res.json(questao);
+
+    } catch (error) {
+        res.status(500).json({
+            erro: 'Erro ao atualizar questão',
+            detalhes: error.message
+        });
+    }
+};
+
+const excluir = async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+
+        await prisma.questoes.delete({
+            where: { id }
+        });
+
+        res.json({
+            mensagem: 'Questão excluída com sucesso'
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            erro: 'Erro ao excluir questão',
+            detalhes: error.message
+        });
+    }
+};
+
+module.exports = {
+    cadastrar,
+    listar,
+    listarPorQuiz,
+    buscar,
+    atualizar,
+    excluir
+};
